@@ -1,7 +1,7 @@
-
 Cihaz çalışma sistemi
 Device Operating System
 ThingOS
+
 queue if condition then do sth in mode
 condition = could be a ( sensor value) or a (state of a device)
 queue = the order in the mode
@@ -64,12 +64,14 @@ split -> # -> current_mode
 while current_mode.length
 split -> * -> current_mode[i]
 removing an operation from mode is not means deleting operation but only removing from queue from runningMode
+
 there is 3 flows in middleware
 save the current mode and send to run
 get the current running mode number
 schedule a mode ( send RUN+{mode_number} at a scheduled time )
 discover modules and save them
 create device modes with actions
+
 evaporatif modes
 fan modu
 fan on
