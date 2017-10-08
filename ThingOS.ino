@@ -30,12 +30,12 @@ uint8_t ssTX = 1;
 // Remember to connect all devices to a common Ground: XBee, Arduino and USB-Serial device
 SoftwareSerial nss(ssRX, ssTX);
 
-int DEBUG_MODE =1;
+boolean DEBUG_MODE =true;
+boolean CONFIG_MODE =false;
+boolean counting=false;
+unsigned long startMillis=0;
 int sensorValue = 0;  // variable to store the value coming from the sensor
-
-int runningMode=0;  // default runMode 0
-int configMode =0;
-
+int runningMode=0;  // default runnigMode 0
 struct opMode
 {
   char ifCond;
@@ -61,7 +61,9 @@ struct opMode opModes[10];
 
 void setup() {
   //C*(value)#Q*(value)#IF*(value)#STATE*(condition)#FROM*(input)#DO*(value)#WHAT*#TO*(output)#IN*(mode)
-  char* factoryMode =  "C*0#Q*0#I*G#S*400#F*0#D*D#W*HIGH#T*7";
+  char* factoryMode0 =  "C*0#Q*0#I*G#S*400#F*0#D*D#W*HIGH#T*2";
+  char* factoryMode1 =  "C*0#Q*1#I*T#S*4000#F*0#D*D#W*LOW#T*2";
+  char* factoryMode2 =  "B*1#C*0#Q*2#I*C#S*1#F*0#D*D#W*LOW#T*2";
   //#M*normal
 
   // declare the ledPin as an OUTPUT:
@@ -75,7 +77,9 @@ void setup() {
 
   xbee.setSerial(Serial);
   nss.begin(9600);
-  deSerialize(factoryMode);
+  deSerialize(factoryMode0);
+  //deSerialize(factoryMode1);
+  //deSerialize(factoryMode2);
 }
 
 void loop() {
@@ -124,10 +128,10 @@ void loop() {
         token = strtok(NULL, "+");
         command = token;
         if(command=="ON"){
-          configMode = 1; 
+          CONFIG_MODE = true; 
           Serial.println("OK");
         }else if(command=="OFF"){
-          configMode = 0;
+          CONFIG_MODE = false;
           Serial.println("OK");
         }else{
           deSerialize(token);
@@ -169,11 +173,12 @@ void loop() {
    }
    token = strtok(NULL, "+");
 
-  }}
+   }
+  }
   ////////////////////////////////////////
   // OPERATION 
   ////////////////////////////////////////
-  if(!configMode){
+  if(!CONFIG_MODE){
     if(DEBUG_MODE){
       Serial.print("\n runningMode: ");
       Serial.print(runningMode);
@@ -187,7 +192,7 @@ void loop() {
         Serial.print(p);
       }
       if(opModes[p].bindedTo>-1){
-        if(opModes[opModes[p].bindedTo].curCond){
+        if(opModes[opModes[p].bindedTo].curCond){ // stop if the binded condition is true else run this condition also
           continue;
         }
       }
@@ -198,10 +203,7 @@ void loop() {
 }
 boolean calculatedCond(int p)
 {
-  
   String ifCondition(opModes[p].ifCond);
-     
-        
       /*
       // EQUALS
       */
@@ -271,63 +273,97 @@ boolean calculatedCond(int p)
           }
           return true;
         }
+        /*
+        // SEND COMMAND
+        */
   }else  if(ifCondition == "C"){
         
           if(DEBUG_MODE){
             Serial.print(" set : ");Serial.print(opModes[p].state);
           }
           return true;
+          
+        /*
+        // TIME DELAY
+        */
+  }else if(ifCondition=="T"){
+          if(!counting){ // the beginning of time
+            startMillis = millis();
+            counting = true;   
+            
+            if(DEBUG_MODE){
+              Serial.print(" startMillis : ");Serial.print(startMillis);
+            }
+             opModes[p].curCond=true;
+            return false;
+          }else{
+            if(millis()-startMillis>opModes[p].state){ // end of the time delay
+              counting=false;
+              startMillis=0;
+              
+              opModes[p].curCond=false;
+              return false;
+            }else{ // normal condition so if any binded condition will not run
+               if(DEBUG_MODE){
+                Serial.print(" millis : ");Serial.print(millis());
+              }
+              
+              opModes[p].curCond=true;
+              return false;
+            }
+          }
   }
 }
 void operate(int p){
   String ifCondition(opModes[p].ifCond);
      
-        
-        if(calculatedCond(p)){
-          opModes[p].curCond=true;
-          if(DEBUG_MODE){
-            Serial.print(" equals : ");Serial.print(opModes[p].state);
-          }
-          String strOut(opModes[p].doOutput);
-          if( strOut== "D"){
-            pinMode(opModes[p].toPin,OUTPUT);
-            if(DEBUG_MODE){
-              Serial.print(" doOutput to : ");Serial.print(opModes[p].toPin);
-            }
-            String str(opModes[p].sendWhat);
-            if(str == "L"){
-              digitalWrite(opModes[p].toPin,LOW);
-            }else if(str == "H"){
-              digitalWrite(opModes[p].toPin,HIGH);
-            }
-          }else if(strOut == "S"){
-            Serial.println(opModes[p].sendWhat);
-          }else if(strOut == "RS"){
-            Serial.println(opModes[p].sendWhat);
-          }
-        }else if(ifCondition != "C"){
-          
-          opModes[p].curCond=false;
-          if(DEBUG_MODE){
-            Serial.print(" equals : ");Serial.print(opModes[p].state);
-          }
-          String strOut(opModes[p].doOutput);
-          if( strOut== "D"){
-            pinMode(opModes[p].toPin,OUTPUT);
-            if(DEBUG_MODE){
-              Serial.print(" doOutput to : ");Serial.print(opModes[p].toPin);
-            }
-            String str(opModes[p].sendWhat);
-            if(str != "L"){
-              digitalWrite(opModes[p].toPin,LOW);
-            }else if(str != "H"){
-              digitalWrite(opModes[p].toPin,HIGH);
-            }
-          }
-        }//fromPin
-      /*
-      // SEND COMMAND
-      */
+  if(calculatedCond(p)){
+    opModes[p].curCond=true;
+    
+    String strOut(opModes[p].doOutput);
+    if(DEBUG_MODE){
+       Serial.print(" doOutput : ");Serial.print(opModes[p].sendWhat);
+    } 
+    if( strOut== "D"){
+      pinMode(opModes[p].toPin,OUTPUT);
+      
+      if(DEBUG_MODE){
+        Serial.print(" to : ");Serial.print(opModes[p].toPin);
+      }
+      String str(opModes[p].sendWhat);
+     
+      if(str == "L"){
+        digitalWrite(opModes[p].toPin,LOW);
+      }else if(str == "H"){
+        digitalWrite(opModes[p].toPin,HIGH);
+      }
+    }else if(strOut == "S"){
+      Serial.println(opModes[p].sendWhat);
+    }else if(strOut == "RS"){
+      Serial.println(opModes[p].sendWhat);
+    }
+  }else if(ifCondition == "T"){
+  }else if(ifCondition != "C"){
+    
+    opModes[p].curCond=false;
+    if(DEBUG_MODE){
+       Serial.print(" doNot Output : ");Serial.print(opModes[p].sendWhat);
+    } 
+    String strOut(opModes[p].doOutput);
+    if( strOut== "D"){
+      pinMode(opModes[p].toPin,OUTPUT);
+      if(DEBUG_MODE){
+        Serial.print(" to : ");Serial.print(opModes[p].toPin);
+      }
+      String str(opModes[p].sendWhat);
+      if(str != "L"){
+        digitalWrite(opModes[p].toPin,LOW);
+      }else if(str != "H"){
+        digitalWrite(opModes[p].toPin,HIGH);
+      }
+    }
+  }//fromPin
+
 }
 void deSerialize(char *value){
   //char *modeName="";
