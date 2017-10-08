@@ -1,4 +1,4 @@
-​
+
 Cihaz çalışma sistemi
 Device Operating System
 ThingOS
