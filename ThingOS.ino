@@ -45,7 +45,7 @@ struct opMode
   int bindedTo=-1;
   char doOutput;
   int toPin=-1;
-  char sendWhat;
+  String sendWhat;
   boolean curCond=false;
   //char* modeName="\0";
 };
@@ -61,7 +61,7 @@ struct opMode opModes[10];
 
 void setup() {
   //C*(value)#Q*(value)#IF*(value)#STATE*(condition)#FROM*(input)#DO*(value)#WHAT*#TO*(output)#IN*(mode)
-  char* factoryMode0 =  "C*0#Q*0#I*G#S*400#F*0#D*D#W*HIGH#T*2";
+  char* factoryMode0 =  "C*0#Q*0#I*G#S*400#F*0#D*S#W*GIRIS#T*2";
   char* factoryMode1 =  "C*0#Q*1#I*T#S*4000#F*0#D*D#W*LOW#T*2";
   char* factoryMode2 =  "B*1#C*0#Q*2#I*C#S*1#F*0#D*D#W*LOW#T*2";
   //#M*normal
@@ -83,8 +83,8 @@ void setup() {
 }
 
 void loop() {
-  char *runningModeToken,*readenCommand,*token;
-  String serialRead,commandName,command;   
+  char *readenCommand='\0',*token='\0';
+  String runningModeToken="\0",serialRead="\0",commandName="\0",command="\0";   
   xbee.readPacket();
   uint8_t payload[] = { 'O', 'K' };
   
@@ -102,8 +102,8 @@ void loop() {
         Serial.print("checksum is ");
         Serial.println(rx.getChecksum(), HEX);
   
-        Serial.print("packet length is ");
-        Serial.println(rx.getPacketLength(), DEC);
+        Serial.print("data length is ");
+        Serial.println(rx.getDataLength(), DEC);
         Serial.println((char*)rx.getData());
       }
     if(DEBUG_MODE)
@@ -115,18 +115,21 @@ void loop() {
     if(DEBUG_MODE)      
       Serial.println(serialRead);
     serialRead.toCharArray(readenCommand,serialRead.length()+1);*/
-    readenCommand=(char*)rx.getData();
     
+    char copy[rx.getDataLength()];
+    String readenCommand((char*)rx.getData());
+    readenCommand.toCharArray(copy, rx.getDataLength());
     if(DEBUG_MODE)      
       Serial.println(readenCommand);
-    token = strtok(readenCommand, "+");
-    commandName = token;
+    token = strtok(copy, "+");
+    String commandName(token);
 
     if(DEBUG_MODE)      
       Serial.println(commandName);
     if(commandName=="CONFIG"){
         token = strtok(NULL, "+");
-        command = token;
+        String command(token);
+        Serial.println(command);
         if(command=="ON"){
           CONFIG_MODE = true; 
           Serial.println("OK");
@@ -140,7 +143,8 @@ void loop() {
    }
    else if(commandName =="RUN"){
         token = strtok(NULL, "+");
-        runningModeToken = token;
+        String runningModeToken(token);
+        Serial.println(runningModeToken);
         if(*token == '?'){
           Serial.print("RUNNING+");
           Serial.println(runningMode);
@@ -153,16 +157,15 @@ void loop() {
             Serial.print(" if A");Serial.print(opModes[r].fromPin);Serial.print(" ");Serial.print(opModes[r].ifCond);Serial.print(" ");Serial.print(opModes[r].state);Serial.print(" ");
             Serial.print(" then send ");Serial.print(opModes[r].sendWhat);Serial.print(" to ");Serial.print(opModes[r].doOutput);Serial.print(opModes[r].toPin);Serial.println(" ");
           }
-          
-          
         }else{
-          runningMode = atoi(runningModeToken);
+          runningMode = runningModeToken.toInt();
           Serial.println("OK");
         }
 
    }else if(commandName =="DEBUG"){
         token = strtok(NULL, "+");
-        command = token;
+        String command(token);
+        Serial.println(command);
         if(command=="ON"){
           DEBUG_MODE = 1; 
           Serial.println("OK");
@@ -198,6 +201,8 @@ void loop() {
       }
       operate(p);
     }      
+  }else{
+    delay(100);
   }
 
 }
@@ -330,15 +335,23 @@ void operate(int p){
       if(DEBUG_MODE){
         Serial.print(" to : ");Serial.print(opModes[p].toPin);
       }
-      String str(opModes[p].sendWhat);
-     
-      if(str == "L"){
+      if(opModes[p].sendWhat == "L"){
         digitalWrite(opModes[p].toPin,LOW);
-      }else if(str == "H"){
+      }else if(opModes[p].sendWhat == "H"){
         digitalWrite(opModes[p].toPin,HIGH);
       }
     }else if(strOut == "S"){
-      Serial.println(opModes[p].sendWhat);
+      if(opModes[p].sendWhat == "GIRIS"){
+        for(int g=0;g<6;g++){
+          int a = analogRead(g);
+         
+          Serial.print("#");
+          Serial.print(g);
+          Serial.print("*");
+          Serial.print(a);
+        }
+        Serial.println("");
+      }
     }else if(strOut == "RS"){
       Serial.println(opModes[p].sendWhat);
     }
@@ -355,10 +368,9 @@ void operate(int p){
       if(DEBUG_MODE){
         Serial.print(" to : ");Serial.print(opModes[p].toPin);
       }
-      String str(opModes[p].sendWhat);
-      if(str != "L"){
+      if(opModes[p].sendWhat != "LOW"){
         digitalWrite(opModes[p].toPin,LOW);
-      }else if(str != "H"){
+      }else if(opModes[p].sendWhat != "HIGH"){
         digitalWrite(opModes[p].toPin,HIGH);
       }
     }
@@ -509,7 +521,7 @@ void deSerialize(char *value){
    opModes[queue].bindedTo = bindedTo;
    opModes[queue].ifCond=*ifCond;
    opModes[queue].doOutput=*doOutput;
-   opModes[queue].sendWhat=*sendWhat;
+   opModes[queue].sendWhat  =sendWhat;
    //opModes[queue].modeName = modeName; 
    //runModes[count].modeName = modeName;
    boolean isExist=false;
