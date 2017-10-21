@@ -22,6 +22,7 @@ XBeeResponse response = XBeeResponse();
 ZBRxResponse rx = ZBRxResponse();
 ModemStatusResponse msr = ModemStatusResponse();
 ZBTxStatusResponse txStatus = ZBTxStatusResponse();
+XBeeAddress64 addr64 = XBeeAddress64(0x0013a200, 0x403e0f30);
 // Define NewSoftSerial TX/RX pins
 // Connect Arduino pin 8 to TX of usb-serial device
 uint8_t ssRX = 0;
@@ -61,9 +62,9 @@ struct opMode opModes[10];
 
 void setup() {
   //C*(value)#Q*(value)#IF*(value)#STATE*(condition)#FROM*(input)#DO*(value)#WHAT*#TO*(output)#IN*(mode)
-  char* factoryMode0 =  "C*0#Q*0#I*G#S*400#F*0#D*S#W*GIRIS#T*2";
+  char* factoryMode0 =  "C*0#Q*0#I*G#S*400#F*0#D*D#W*HIGH#T*2";
   char* factoryMode1 =  "C*0#Q*1#I*T#S*4000#F*0#D*D#W*LOW#T*2";
-  char* factoryMode2 =  "B*1#C*0#Q*2#I*C#S*1#F*0#D*D#W*LOW#T*2";
+  char* factoryMode2 =  "B*1#C*0#Q*2#I*C#S*1#F*0#D*S#W*INPUTS#T*2";
   //#M*normal
 
   // declare the ledPin as an OUTPUT:
@@ -91,7 +92,7 @@ void loop() {
   if (xbee.getResponse().isAvailable()) {
     if (xbee.getResponse().getApiId() == ZB_RX_RESPONSE) {
       xbee.getResponse().getZBRxResponse(rx);
-      
+      addr64=rx.getRemoteAddress64();
       if(DEBUG_MODE){
         if (rx.getOption() == ZB_PACKET_ACKNOWLEDGED) {
           // the sender got an ACK
@@ -174,7 +175,7 @@ void loop() {
           Serial.println("OK");
         }
    }
-   token = strtok(NULL, "+");
+   //token = strtok(NULL, "+");
 
    }
   }
@@ -213,7 +214,8 @@ boolean calculatedCond(int p)
       // EQUALS
       */
   if(ifCondition == "E"){
-        pinMode(opModes[p].fromAPin,INPUT);
+        pinMode(opModes[p].fromAPin,INPUT);digitalWrite(opModes[p].fromAPin, LOW);
+        digitalWrite(opModes[p].fromAPin, INPUT_PULLUP);
         int a = analogRead(opModes[p].fromAPin);
         if(DEBUG_MODE){
           Serial.print(" if fromPin ");Serial.print(opModes[p].fromPin);Serial.print(" : ");
@@ -327,33 +329,50 @@ void operate(int p){
     
     String strOut(opModes[p].doOutput);
     if(DEBUG_MODE){
-       Serial.print(" doOutput : ");Serial.print(opModes[p].sendWhat);
+       Serial.print(" doOutput : ");
     } 
+    if(opModes[p].sendWhat.startsWith("INPUTS")){
+        opModes[p].sendWhat="INPUTS";
+        opModes[p].sendWhat+='+';
+        for(int g=0;g<6;g++){
+          int a = analogRead(g);
+          opModes[p].sendWhat+='#';
+          opModes[p].sendWhat+=g;
+          opModes[p].sendWhat+='*';
+          opModes[p].sendWhat+=a;
+        }
+        opModes[p].sendWhat+='\0';
+    }else{
+      if(DEBUG_MODE){
+        Serial.print(opModes[p].sendWhat);
+      }
+    }
+    
     if( strOut== "D"){
       pinMode(opModes[p].toPin,OUTPUT);
       
       if(DEBUG_MODE){
         Serial.print(" to : ");Serial.print(opModes[p].toPin);
       }
-      if(opModes[p].sendWhat == "L"){
+      if(opModes[p].sendWhat == "LOW"){
         digitalWrite(opModes[p].toPin,LOW);
-      }else if(opModes[p].sendWhat == "H"){
+      }else if(opModes[p].sendWhat == "HIGH"){
         digitalWrite(opModes[p].toPin,HIGH);
       }
     }else if(strOut == "S"){
-      if(opModes[p].sendWhat == "GIRIS"){
-        for(int g=0;g<6;g++){
-          int a = analogRead(g);
-         
-          Serial.print("#");
-          Serial.print(g);
-          Serial.print("*");
-          Serial.print(a);
-        }
-        Serial.println("");
-      }
+      Serial.println(opModes[p].sendWhat);
     }else if(strOut == "RS"){
       Serial.println(opModes[p].sendWhat);
+    }else if(strOut == "M"){
+      Serial.print("changeModeTo: ");
+      Serial.println(opModes[p].sendWhat);
+      runningMode=opModes[p].sendWhat.toInt();
+    }else if(strOut == "X"){
+      char *mopy="";
+      opModes[p].sendWhat.toCharArray(mopy,opModes[p].sendWhat.length());
+      Serial.println(*mopy);
+      ZBTxRequest zbTx = ZBTxRequest(addr64, mopy, opModes[p].sendWhat.length());
+      xbee.send(zbTx);
     }
   }else if(ifCondition == "T"){
   }else if(ifCondition != "C"){
