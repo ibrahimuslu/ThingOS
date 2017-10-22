@@ -510,6 +510,7 @@ void deSerialize(char *value){
        if(DEBUG_MODE)
          Serial.println(mode[k]);
        boolean found = false;
+       count = atoi(mode[k]);
        for(int o =0;o<runModes[count].count;o++){
          if(found){
            runModes[count].queue[o-1]=runModes[count].queue[o];
