@@ -12,7 +12,9 @@ queue if condition then do sth in mode
 - do sth = operation state change or send a value to the information channel
 
 CONFIG+C*0#Q*0#I*E#S*1023#F*3#D*D#W*HIGH#T*7
+
 C*(value)#Q*(value)#IF*(value)#STATE*(condition)#FROM*(input)#DO*(value)#WHAT*#TO*(output) // due to some reason not used -&gt; #IN*(mode)
+
 C*1#Q*0#I*E#S*1#F*3#D*D#W*HIGH#T*7 // kısa modu
 
 - C = Count
