@@ -1,8 +1,6 @@
-Cihaz çalışma sistemi
-
-Device Operating System
-
 ThingOS
+--Cihaz çalışma sistemi
+--Device Operating System
 
 queue if condition then do sth in mode
 
